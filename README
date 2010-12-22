@@ -1,0 +1,36 @@
+
+This is some simple tools for loading the Clueweb09 collection into HBase.  As of the initial commit, there are three tools:
+
+LoadClue: load Clueweb documents into HBase.  Includes an input format for
+     Clueweb documents.
+Fetch: a command-line fetcher for getting docs by docid or URL
+Serve: a Jetty HTTP server interface like Fetch.  As a bonus, when a given URL is not
+    found, it returns a redirect to the given URL, so unmatched URLs (like relative
+    links in fetched pages) are fetched properly by a browser.
+
+Below is my original blog post on this code, at http://pseudo.posterous.com/getting-clueweb-into-hbase
+
+I have a simple webtable in HBase to hold the Clueweb09 collection.  The english portion of Clueweb09 is around 500 million web pages or 12.5TB of data.  I recommend reading the above link for details on Clueweb09; in TREC, we are using it in several tracks focusing on different aspects of web search.
+
+I wanted to put Clueweb into HBase to make it easy to fetch individual web pages from the collection and show them to a user, who then analyzes the web page and determines if it is relevant to some search topic.  We have an existing method for this, but it doesn't scale to large collections.  My simple webtable has the following structure:
+
+hbase(main):002:0> describe 'webtable'
+DESCRIPTION                       
+ {NAME => 'webtable', FAMILIES => [{NAME => 'content', BLOOMF
+ ILTER => 'NONE', REPLICATION_SCOPE => '0', VERSIONS => '3',
+ COMPRESSION => 'NONE', TTL => '2147483647', BLOCKSIZE => '10
+ 48576', IN_MEMORY => 'false', BLOCKCACHE => 'true'}, {NAME =
+ > 'meta', BLOOMFILTER => 'NONE', REPLICATION_SCOPE => '0', V
+ ERSIONS => '3', COMPRESSION => 'NONE', TTL => '2147483647',
+ BLOCKSIZE => '65536', IN_MEMORY => 'false', BLOCKCACHE => 't
+ rue'}]}
+
+That is, two column families: 'content' and 'meta'.  Content maps a url to the web page content.  Meta is for general metadata, but at the moment it just maps the internal Clueweb document identifiers to the corresponding url.  Using this structure, I can retrieve documents either by url or by document identifier, and support fetching individual documents as well as browsing within the collection.  The content content family has a larger blocksize (1MB), but otherwise there are no changes from the stock table settings.
+
+My cluster is fairly small in terms of cores and memory, but large on storage.  I have 14 physical nodes, each with 8 cores, 8GB of RAM, and 12.5TB of storage disk in seven spindles.  The first node is the NameNode, JobTracker, and HBase master, and has its storage striped into a RAID-5.  The second node mirrors the namenode storage, and also acts as the SecondaryNameNode.  The remaining twelve nodes keep the seven data disks separate, and each run a DataNode, TaskTracker, and RegionServer.  I'm running Cloudera's CDH3 beta (737) on top of CentOS-5.
+
+For Hadoop's configuration, I have HDFS replicating each block to three locations.  The processes on the NN get more heap, but on the workers, heap is limited to 1GB per process.  I use the FairScheduler and allow 3 mappers and 3 reducers to run on each host. 
+
+For HBase, I started with a region filesize of 2GB.  I based this on estimating that I wanted around 500 regions per node once all the data was loaded, and 500 * 2GB * 12 equals around 12.5TB.  Later on as I was loading data, I found that I was getting more than 700 regions per node and timeouts during put calls, so I bumped the region max to 4GB, and added an hbase.client.pause of 5000 (5ms).
+
+I split the collection into ten pieces, so I could load it a piece at a time and start over when I needed to.  At the beginning, I loaded 1.25TB of text in 4 hours.  As more and more data was loaded, this crept up to 8 hours.  I think the time would have been kept lower overall if I'd started with 4GB regions, rather than loading nearly all the data with 2GB regions and bumping it up near the end.
