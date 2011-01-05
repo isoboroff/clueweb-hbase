@@ -69,28 +69,6 @@ public class LoadClue {
 
     private static final String NAME = "LoadClue";
   
-    private static String reverse_hostname(String uri) {
-	URL url = null;
-	try {
-	    url = new URL(uri);
-	} catch (MalformedURLException mue) {
-	    return null;
-	}
-	String host = url.getHost();
-	StringBuilder newhost = new StringBuilder();
-	String[] parts = host.split("\\.", 0);
-	for (int i = parts.length - 1; i > 0; i--) {
-	    if (i > 0)
-		newhost.append(parts[i]).append(".");
-	}
-	newhost.append(parts[0]);
-	int port = url.getPort();
-	if (port != -1)
-	    newhost.append(":").append(port);
-	newhost.append(url.getFile());
-	return newhost.toString();
-    }
-
     private static HashMap<String, String> get_headers(String doc) {
 	HashMap<String, String> hdr = new HashMap(20);
 	try {
@@ -143,7 +121,7 @@ public class LoadClue {
 		    System.err.println("Doc has no target-uri");
 		    return;
 		}
-		String keystr = reverse_hostname(uri);
+		String keystr = Util.reverse_hostname(uri);
 
 		byte[] row = Bytes.toBytes(keystr);
 		byte[] family = Bytes.toBytes("content");

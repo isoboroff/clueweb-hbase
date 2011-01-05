@@ -24,34 +24,13 @@ public class Serve {
     protected static Configuration config;
 
     public static class FetchHandler extends AbstractHandler {
-	protected String reverse_hostname(String uri) {
-	    URL url = null;
-	    try {
-		url = new URL(uri);
-	    } catch (MalformedURLException mue) {
-		return null;
-	    }
-	    String host = url.getHost();
-	    StringBuilder newhost = new StringBuilder();
-	    String[] parts = host.split("\\.", 0);
-	    for (int i = parts.length - 1; i > 0; i--) {
-		if (i > 0)
-		    newhost.append(parts[i]).append(".");
-	    }
-	    newhost.append(parts[0]);
-	    int port = url.getPort();
-	    if (port != -1)
-		newhost.append(":").append(port);
-	    newhost.append(url.getFile());
-	    return newhost.toString();
-	}
 
 	public void handle(String target, HttpServletRequest req,
 			   HttpServletResponse resp, int dispatch)
 	    throws IOException, ServletException {
 
 	    Configuration config = HBaseConfiguration.create();
-	    HTable table = new HTable(config, "webtable");
+	    HTable table = new HTable(config, "webtable2");
 	    
 	    String query = target.substring(1);
 	    String url = null;
@@ -60,14 +39,14 @@ public class Serve {
 
 	    if (query.startsWith("http://")) {
 		url = query;
-		query = reverse_hostname(query);
+		query = Util.reverse_hostname(query);
 	    } else if (query.startsWith("clueweb")) {
 		Get g = new Get(Bytes.toBytes(query));
 		Result r = table.get(g);
 		byte[] value = r.getValue(Bytes.toBytes("meta"),
 					  Bytes.toBytes("url"));
 		query = Bytes.toString(value);
-		url = reverse_hostname(query);
+		url = Util.reverse_hostname(query);
 	    }
 	    
 	    Get g = new Get(Bytes.toBytes(query));
