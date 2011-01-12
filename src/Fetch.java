@@ -15,15 +15,15 @@ import org.apache.hadoop.hbase.util.Bytes;
 public class Fetch {
     public static void main(String[] args) throws IOException {
 
-	if (args.length != 1) {
-	    System.out.println("Usage: Fetch [URL or docid]\n");
+	if (args.length != 2) {
+	    System.out.println("Usage: Fetch [table] [URL or docid]\n");
 	    System.exit(-1);
 	}
 
 	Configuration config = HBaseConfiguration.create();
-	HTable table = new HTable(config, "webtable");
+	HTable table = new HTable(config, args[0]);
 
-	String query = args[0];
+	String query = args[1];
 	if (query.startsWith("http://")) {
 	    query = Util.reverse_hostname(query);
 	} else if (query.startsWith("clueweb")) {

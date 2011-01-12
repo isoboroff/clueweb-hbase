@@ -25,13 +25,20 @@ public class Serve {
 
     public static class FetchHandler extends AbstractHandler {
 
+	protected String tabname;
+	protected Configuration conf;
+	protected HTable table;
+
+	public FetchHandler(String table_name) throws IOException {
+	    tabname = table_name;
+	    conf = HBaseConfiguration.create();
+	    table = new HTable(conf, table_name);
+	}
+
 	public void handle(String target, HttpServletRequest req,
 			   HttpServletResponse resp, int dispatch)
 	    throws IOException, ServletException {
 
-	    Configuration config = HBaseConfiguration.create();
-	    HTable table = new HTable(config, "webtable2");
-	    
 	    String query = target.substring(1);
 	    String url = null;
 
@@ -76,11 +83,11 @@ public class Serve {
     public static void main(String[] args) throws Exception {
 	config = HBaseConfiguration.create();
 	int port = 8888;
-	if (args.length > 0)
-	    port = Integer.parseInt(args[0]);
+	if (args.length > 1)
+	    port = Integer.parseInt(args[1]);
 
 	Server server = new Server(port);
-	server.setHandler(new FetchHandler());
+	server.setHandler(new FetchHandler(args[0]));
 	server.start();
 	server.join();
     }
