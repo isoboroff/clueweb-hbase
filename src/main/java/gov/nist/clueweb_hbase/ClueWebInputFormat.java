@@ -1,33 +1,22 @@
-package gov.nist.clueweb_hbase;
-
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-
-import org.apache.hadoop.io.Text;
-import org.apache.hadoop.io.LongWritable;
-import org.apache.hadoop.io.compress.CompressionCodec;
-import org.apache.hadoop.io.compress.CompressionCodecFactory;
-import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileStatus;
-import org.apache.hadoop.fs.PathFilter;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.FSDataInputStream;
-import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.mapreduce.RecordReader;
-import org.apache.hadoop.mapreduce.JobContext;
-import org.apache.hadoop.mapreduce.TaskAttemptContext;
-import org.apache.hadoop.mapred.Reporter;
-import org.apache.hadoop.mapreduce.lib.input.FileSplit;
+import org.apache.hadoop.fs.PathFilter;
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.InputSplit;
+import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.RecordReader;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 import org.apache.hadoop.mapreduce.lib.input.InvalidInputException;
 import org.apache.hadoop.mapreduce.lib.input.LineRecordReader;
 
@@ -120,7 +109,7 @@ public class ClueWebInputFormat extends FileInputFormat<LongWritable, Text> {
 
         while (!stats.isEmpty()) {
             FileStatus stat = stats.pop();
-            if (stat.isDir()) {
+            if (stat.isDirectory()) {
                 FileSystem fs = stat.getPath().getFileSystem(job.getConfiguration());
                 for (FileStatus sub : fs.listStatus(stat.getPath(),
                         inputFilter)) {
@@ -141,13 +130,12 @@ public class ClueWebInputFormat extends FileInputFormat<LongWritable, Text> {
 
     public static class ClueWebRecordReader
             extends RecordReader<LongWritable, Text> {
-        private long start;
         private long end;
         private long pos;
-        private Path path;
         private LineRecordReader in;
         private LongWritable cur_key = null;
         private Text cur_val = null;
+        private final int MAX_DOC_LEN = 65536;
 
         public ClueWebRecordReader() {
         }
@@ -158,11 +146,10 @@ public class ClueWebInputFormat extends FileInputFormat<LongWritable, Text> {
             cur_key = new LongWritable(0);
             try {
                 if (split instanceof FileSplit) {
-                    path = ((FileSplit) split).getPath();
+                    ((FileSplit) split).getPath();
                 } else {
-                    path = new Path("");
+                    new Path("");
                 }
-                start = 0;
                 pos = 0;
                 end = split.getLength();
                 in = new LineRecordReader();
@@ -181,7 +168,6 @@ public class ClueWebInputFormat extends FileInputFormat<LongWritable, Text> {
         }
 
         private Text hold = null;
-        private long last_pos = 0;
         StringBuilder buf = null;
 
         public synchronized boolean nextKeyValue()
@@ -191,7 +177,7 @@ public class ClueWebInputFormat extends FileInputFormat<LongWritable, Text> {
             boolean in_doc = false;
 
             if (buf == null)
-                buf = new StringBuilder();
+                buf = new StringBuilder(MAX_DOC_LEN * 2);
 
             if (hold != null) {
                 buf.append(hold.toString()).append("\n");
@@ -203,10 +189,9 @@ public class ClueWebInputFormat extends FileInputFormat<LongWritable, Text> {
                 while (in.nextKeyValue()) {
                     line = in.getCurrentValue();
                     int size = line.getLength();
-                    last_pos = pos;
                     pos += size;
 
-                    if (line.find("WARC/0.18") == 0) {
+                    if (line.find("WARC/1.0") == 0) {
                         if (in_doc) {
                             in_doc = false;
                             hold = line;
@@ -217,14 +202,15 @@ public class ClueWebInputFormat extends FileInputFormat<LongWritable, Text> {
                         }
                     }
 
-                    if (in_doc)
+                    if (in_doc && buf.length() <= MAX_DOC_LEN)
                         buf.append(line.toString()).append("\n");
                 }
             } catch (java.io.IOException e) {
             }
 
-            if (buf.length() > 0) {
-                cur_val.set(buf.toString());
+            int len = buf.length();
+            if (len > 0) {
+                cur_val.set(buf.substring(0, Math.min(len, 65536)));
                 cur_key.set(cur_key.get() + 1);
                 buf = null;
                 return true;
