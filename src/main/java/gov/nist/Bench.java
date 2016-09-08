@@ -1,3 +1,5 @@
+package gov.nist.clueweb-hbase;
+
 import java.io.IOException;
 import java.io.BufferedReader;
 import java.io.FileReader;

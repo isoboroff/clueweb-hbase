@@ -1,3 +1,5 @@
+package gov.nist.clueweb-hbase;
+
 import java.io.IOException;
 import java.net.URL;
 import java.net.MalformedURLException;
