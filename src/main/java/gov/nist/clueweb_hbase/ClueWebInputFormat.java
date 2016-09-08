@@ -1,3 +1,5 @@
+package gov.nist.clueweb_hbase;
+
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
