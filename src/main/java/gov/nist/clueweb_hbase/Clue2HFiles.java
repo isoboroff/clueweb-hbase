@@ -19,29 +19,27 @@
  */
 package gov.nist.clueweb_hbase;
 
-import java.io.IOException;
-import java.net.URL;
-import java.net.MalformedURLException;
-import java.util.HashMap;
-import java.io.BufferedReader;
-import java.io.StringReader;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Connection;
+import org.apache.hadoop.hbase.client.ConnectionFactory;
 import org.apache.hadoop.hbase.client.Put;
-import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
-import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
-import org.apache.hadoop.hbase.mapreduce.TableOutputFormat;
+import org.apache.hadoop.hbase.mapreduce.HFileOutputFormat2;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
-import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
 import org.apache.hadoop.util.GenericOptionsParser;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.StringReader;
+import java.util.HashMap;
 
 
 /**
@@ -66,9 +64,9 @@ import org.apache.hadoop.util.GenericOptionsParser;
  * <p>
  * This code was written against HBase 0.21 trunk.
  */
-public class LoadClue {
+public class Clue2HFiles {
 
-    private static final String NAME = "LoadClue";
+    private static final String NAME = "Clue2HFiles";
 
     private static HashMap<String, String> get_headers(String doc) {
         HashMap<String, String> hdr = new HashMap(20);
@@ -133,12 +131,12 @@ public class LoadClue {
 
                 // Create Put
                 Put put = new Put(row);
-                put.add(family, qualifier, val);
+                put.addColumn(family, qualifier, val);
 
                 // Uncomment below to disable WAL. This will improve
                 // performance but means you will experience data loss in
                 // the case of a RegionServer crash.
-                put.setWriteToWAL(false);
+                // put.setWriteToWAL(false);
 
                 String trecid = parse.get("WARC-TREC-ID");
                 byte[] row2 = null;
@@ -149,8 +147,8 @@ public class LoadClue {
                     byte[] fam2 = Bytes.toBytes("meta");
                     byte[] qual2 = Bytes.toBytes("url");
                     byte[] val2 = row;
-                    put2.add(fam2, qual2, val2);
-                    put2.setWriteToWAL(false);
+                    put2.addColumn(fam2, qual2, val2);
+                    // put2.setWriteToWAL(false);
                 }
 
                 try {
@@ -171,11 +169,12 @@ public class LoadClue {
         @Override
         public void cleanup(Context context)
                 throws IOException, InterruptedException {
-            if (LoadClue.table_name == null)
+            if (Clue2HFiles.table_name == null)
                 return;
-            context.setStatus("Sending flush");
-            HBaseAdmin admin = new HBaseAdmin(context.getConfiguration());
-            admin.flush(LoadClue.table_name);
+            // context.setStatus("Sending flush");
+            context.setStatus("finishing");
+            // HBaseAdmin admin = new HBaseAdmin(context.getConfiguration())
+            // admin.flush(Clue2HFiles.table_name);
         }
     }
 
@@ -185,19 +184,19 @@ public class LoadClue {
     public static Job configureJob(Configuration conf, String[] args)
             throws IOException {
         Path inputPath = new Path(args[0]);
-        String tableName = args[1];
+        TableName tableName = TableName.valueOf(Bytes.toBytes(args[1]));
         Job job = new Job(conf, NAME + "_" + tableName);
+
+        Connection conn = ConnectionFactory.createConnection(conf);
+
         job.setJarByClass(Uploader.class);
         FileInputFormat.setInputPaths(job, inputPath);
         job.setInputFormatClass(ClueWebInputFormat.class);
         job.setMapperClass(Uploader.class);
-        LoadClue.setTableName(tableName);
+        job.setMapOutputValueClass(Put.class);
 
-        // No reducers.  Just write straight to table.  Call initTableReducerJob
-        // because it sets up the TableOutputFormat.
-        TableMapReduceUtil.initTableReducerJob(tableName, null, job);
-        TableMapReduceUtil.addDependencyJars(conf, TableOutputFormat.class);
-        job.setNumReduceTasks(0);
+        job.setOutputFormatClass(HFileOutputFormat2.class);
+        HFileOutputFormat2.configureIncrementalLoad(job, conn.getTable(tableName), conn.getRegionLocator(tableName));
         return job;
     }
 
@@ -218,8 +217,6 @@ public class LoadClue {
         Job job = configureJob(conf, otherArgs);
         boolean result = job.waitForCompletion(true);
         System.out.println("Flushing table " + otherArgs[1]);
-        HBaseAdmin admin = new HBaseAdmin(conf);
-        admin.flush(otherArgs[1]);
         System.exit((result == true) ? 0 : 1);
     }
 }
