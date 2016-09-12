@@ -212,9 +212,9 @@ public class Clue2HFiles {
     public static void main(String[] args) throws Exception {
         Configuration conf = HBaseConfiguration.create();
         String[] otherArgs = new GenericOptionsParser(conf, args).getRemainingArgs();
-        if (otherArgs.length != 2) {
+        if (otherArgs.length != 3) {
             System.err.println("Wrong number of arguments: " + otherArgs.length);
-            System.err.println("Usage: " + NAME + " <input> <tablename>");
+            System.err.println("Usage: " + NAME + " <input> <tablename> <output>");
             System.exit(-1);
         }
         Job job = configureJob(conf, otherArgs);
