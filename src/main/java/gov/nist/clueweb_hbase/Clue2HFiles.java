@@ -34,6 +34,7 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.GenericOptionsParser;
 
 import java.io.BufferedReader;
@@ -180,6 +181,7 @@ public class Clue2HFiles {
 
     /**
      * Job configuration.
+     * Usage: Clue2HFiles <path to ClueWeb12 bundles> <table name> <output dir>
      */
     public static Job configureJob(Configuration conf, String[] args)
             throws IOException {
@@ -196,6 +198,7 @@ public class Clue2HFiles {
         job.setMapOutputValueClass(Put.class);
 
         job.setOutputFormatClass(HFileOutputFormat2.class);
+        FileOutputFormat.setOutputPath(job, new Path(args[2]));
         HFileOutputFormat2.configureIncrementalLoad(job, conn.getTable(tableName), conn.getRegionLocator(tableName));
         return job;
     }
